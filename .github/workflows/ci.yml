@@ -1,0 +1,70 @@
+name: CI 
+
+on:
+  push:
+    branches:
+      - main
+    tags: '*'
+
+  pull_request:
+
+jobs:
+
+  tests-and-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install hatch
+        run:
+          pip install -U pip hatch
+      - name: Check formatting
+        run:
+          hatch fmt -f --check
+      - name: Check linting
+        run:
+          hatch fmt -l --check
+      - name: Check tests
+        run:
+          hatch test .
+      - name: Check package
+        run: |
+          rm -rf dist
+          hatch build
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: ./dist/*
+
+  release:
+    runs-on: ubuntu-latest
+    needs: tests-and-checks
+    if: >-
+      github.event_name == 'push' &&
+      startsWith(github.event.ref, 'refs/tags')
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Download Python sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts
+          path: ./dist
+      - name: Check dist/ content
+        run: ls -lR ./dist
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.pypi_token }}
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          generateReleaseNotes: true
+          artifacts: "artifacts/*"
+          token: ${{ secrets.github_token }}
