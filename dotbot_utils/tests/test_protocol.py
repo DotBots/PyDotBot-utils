@@ -1,3 +1,5 @@
+"""Test module for dotbot protocol."""
+
 import dataclasses
 from dataclasses import dataclass
 

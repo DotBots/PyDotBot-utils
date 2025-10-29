@@ -4,6 +4,11 @@ requires = [
 ]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+include = [
+    "*.py"
+]
+
 [project]
 name = "pydotbot-utils"
 version = "0.1.0"
@@ -11,7 +16,7 @@ authors = [
     { name="Alexandre Abadie", email="alexandre.abadie@inria.fr" },
 ]
 dependencies = [
-    "pyserial       >= 3.5",
+    "pyserial >= 3.5",
 ]
 description = "Utility modules for the DotBot Python softwares."
 readme = "README.md"

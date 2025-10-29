@@ -45,19 +45,14 @@ class SerialInterface(threading.Thread):
     def run(self):
         """Listen continuously at each byte received on serial."""
         self.serial.flush()
-        try:
-            while 1:
-                try:
-                    byte = self.serial.read(1)
-                except (TypeError, serial.serialutil.SerialException):
-                    byte = None
-                if byte is None:
-                    break
-                self.callback(byte)
-        except serial.serialutil.PortNotOpenError as exc:
-            raise SerialInterfaceException(f"{exc}") from exc
-        except serial.serialutil.SerialException as exc:
-            raise SerialInterfaceException(f"{exc}") from exc
+        while 1:
+            try:
+                byte = self.serial.read(1)
+            except (TypeError, serial.serialutil.SerialException, serial.serialutil.PortNotOpenError):
+                byte = None
+            if byte is None:
+                break
+            self.callback(byte)
 
     def stop(self):
         self.serial.close()
