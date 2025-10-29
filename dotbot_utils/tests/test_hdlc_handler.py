@@ -1,6 +1,7 @@
 """Test module for HDLC handler class."""
 
 import pytest
+
 from dotbot_utils.hdlc import HDLCDecodeException, HDLCHandler, HDLCState
 
 

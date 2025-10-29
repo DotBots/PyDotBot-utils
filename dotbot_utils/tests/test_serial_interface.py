@@ -1,11 +1,11 @@
 """Test module for dotbot serial interface."""
 
 import sys
-import time
-import pytest
 import threading
-from unittest.mock import MagicMock, patch, call
+import time
+from unittest.mock import MagicMock, call, patch
 
+import pytest
 import serial
 
 from dotbot_utils import serial_interface
