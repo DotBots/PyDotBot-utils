@@ -14,7 +14,9 @@ from dotbot_utils import serial_interface
 @pytest.fixture
 def mock_serial():
     """Fixture to mock serial.Serial."""
-    with patch.object(serial_interface.serial, "Serial", autospec=True) as mock_serial_cls:
+    with patch.object(
+        serial_interface.serial, "Serial", autospec=True
+    ) as mock_serial_cls:
         mock_instance = MagicMock()
         mock_serial_cls.return_value = mock_instance
         yield mock_instance
@@ -23,6 +25,7 @@ def mock_serial():
 # -------------------------------
 # Tests for get_default_port
 # -------------------------------
+
 
 def test_get_default_port_with_no_ports(monkeypatch):
     monkeypatch.setattr(serial_interface.list_ports, "comports", lambda: [])
@@ -42,13 +45,16 @@ def test_get_default_port_windows_returns_first(monkeypatch):
     mock_port1 = MagicMock(device="COM3", product="J-Link")
     mock_port2 = MagicMock(device="COM4", product="Other")
     monkeypatch.setattr(sys, "platform", "win32")
-    monkeypatch.setattr(serial_interface.list_ports, "comports", lambda: [mock_port1, mock_port2])
+    monkeypatch.setattr(
+        serial_interface.list_ports, "comports", lambda: [mock_port1, mock_port2]
+    )
     assert serial_interface.get_default_port() == "COM3"
 
 
 # -------------------------------
 # Tests for SerialInterface
 # -------------------------------
+
 
 def test_serial_interface_init_starts_thread(mock_serial):
     callback = MagicMock()
@@ -130,7 +136,7 @@ def test_run_handles_port_not_open_error(mock_serial):
 
     interface.serial = mock_serial
     mock_serial.read.side_effect = serial.serialutil.PortNotOpenError()
-    
+
     # Should not raise, but should stop cleanly
     interface.run()
 
@@ -140,6 +146,7 @@ def test_run_handles_port_not_open_error(mock_serial):
     # # This one should raise SerialInterfaceException
     # with pytest.raises(serial_interface.SerialInterfaceException):
     #     interface.run()
+
 
 def test_stop_closes_and_joins(mock_serial):
     interface = serial_interface.SerialInterface("COM1", 9600, MagicMock())

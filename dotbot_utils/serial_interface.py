@@ -48,7 +48,11 @@ class SerialInterface(threading.Thread):
         while 1:
             try:
                 byte = self.serial.read(1)
-            except (TypeError, serial.serialutil.SerialException, serial.serialutil.PortNotOpenError):
+            except (
+                TypeError,
+                serial.serialutil.SerialException,
+                serial.serialutil.PortNotOpenError,
+            ):
                 byte = None
             if byte is None:
                 break
