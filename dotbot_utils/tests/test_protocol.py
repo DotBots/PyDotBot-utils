@@ -2,6 +2,7 @@
 
 import dataclasses
 from dataclasses import dataclass
+from enum import IntEnum
 
 import pytest
 
@@ -40,9 +41,62 @@ class PayloadWithBytesFixedLengthTest(Payload):
     data: bytes = b""
 
 
+@dataclass
+class PayloadWithInt(Payload):
+    """Dataclass that holds a 1 byte int."""
+
+    metadata: list[PayloadFieldMetadata] = dataclasses.field(
+        default_factory=lambda: [
+            PayloadFieldMetadata(name="value", disp="val."),
+        ]
+    )
+
+    value: int = 0
+
+
+@dataclass
+class PayloadWithLongInt(Payload):
+    """Dataclass that holds a 4-bytes int."""
+
+    metadata: list[PayloadFieldMetadata] = dataclasses.field(
+        default_factory=lambda: [
+            PayloadFieldMetadata(name="value", disp="val.", length=4),
+        ]
+    )
+
+    value: int = 0
+
+
+@dataclass
+class PayloadWithList(Payload):
+    """Dataclass that holds a list."""
+
+    metadata: list[PayloadFieldMetadata] = dataclasses.field(
+        default_factory=lambda: [
+            PayloadFieldMetadata(name="count", disp="len."),
+            PayloadFieldMetadata(name="values", type_=list, length=0),
+        ]
+    )
+
+    count: int = 0
+    values: list[PayloadWithLongInt] = dataclasses.field(default_factory=lambda: [])
+
+
 register_parser(0x81, PayloadWithBytesTest)
 register_parser(0x82, PayloadWithBytesFixedLengthTest)
-register_parser(0x83, PayloadRawData)
+
+
+class PayloadType(IntEnum):
+    RAW_DATA = 0x83
+    WITH_INT = 0x84
+    WITH_LONG_INT = 0x85
+    WITH_LIST = 0x86
+
+
+register_parser(PayloadType.RAW_DATA, PayloadRawData)
+register_parser(PayloadType.WITH_INT, PayloadWithInt)
+register_parser(PayloadType.WITH_LONG_INT, PayloadWithLongInt)
+register_parser(PayloadType.WITH_LIST, PayloadWithList)
 
 
 @pytest.mark.parametrize(
@@ -96,6 +150,36 @@ def test_parse_header(bytes_, expected):
             PayloadRawData(count=8, data=b"abcdefgh"),
             id="PayloadRawDataTest",
         ),
+        pytest.param(
+            b"\x01\x10\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00"  # header
+            b"\x84"  # payload type
+            b"\x08",  # value
+            Header(),
+            0x84,
+            PayloadWithInt(value=8),
+            id="PayloadWithInt",
+        ),
+        pytest.param(
+            b"\x01\x10\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00"  # header
+            b"\x85"  # payload type
+            b"\x08\x00\x00\x00",  # value
+            Header(),
+            0x85,
+            PayloadWithLongInt(value=8),
+            id="PayloadWithLongInt",
+        ),
+        pytest.param(
+            b"\x01\x10\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00"  # header
+            b"\x86"  # payload type
+            b"\x02"  # count
+            b"\x0a\x00\x00\x00\x0b\x00\x00\x00",  # list of ints
+            Header(),
+            0x86,
+            PayloadWithList(
+                count=2, values=[PayloadWithLongInt(value=10), PayloadWithLongInt(value=11)]
+            ),
+            id="PayloadWithList",
+        ),
     ],
 )
 def test_frame_parser(bytes_, header, payload_type, payload):
@@ -106,7 +190,7 @@ def test_frame_parser(bytes_, header, payload_type, payload):
 
 
 @pytest.mark.parametrize(
-    "payload,expected",
+    "frame,expected",
     [
         pytest.param(
             Frame(
@@ -144,80 +228,130 @@ def test_frame_parser(bytes_, header, payload_type, payload):
             b"abcdefgh",  # data
             id="PayloadRawDataTest",
         ),
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(PayloadWithInt(value=8)),
+            ),
+            b"\x01\x10\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00"  # header
+            b"\x84"  # payload type
+            b"\x08",  # value
+            id="PayloadWithInt",
+        ),
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(PayloadWithLongInt(value=8)),
+            ),
+            b"\x01\x10\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00"  # header
+            b"\x85"  # payload type
+            b"\x08\x00\x00\x00",  # value
+            id="PayloadWithLongInt",
+        ),
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(
+                    PayloadWithList(
+                        count=2,
+                        values=[PayloadWithLongInt(value=10), PayloadWithLongInt(value=11)],
+                    )
+                ),
+            ),
+            b"\x01\x10\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00"  # header
+            b"\x86"  # payload type
+            b"\x02"  # count
+            b"\x0a\x00\x00\x00\x0b\x00\x00\x00",  # list of ints
+            id="PayloadWithList",
+        ),
     ],
 )
-def test_payload_to_bytes(payload, expected):
-    result = payload.to_bytes()
+def test_payload_to_bytes(frame, expected):
+    result = frame.to_bytes()
     assert result == expected, f"{result} != {expected}"
 
 
-# @pytest.mark.parametrize(
-#     "frame,string",
-#     [
-#         pytest.param(
-#             Frame(
-#                 header=Header(),
-#                 packet=Packet.from_payload(
-#                     PayloadWithBytesTest(count=8, data=b"abcdefgh")
-#                 ),
-#             ),
-#             (
-#                 "                 +------+------+--------------------+--------------------+------+\n"
-#                 " CUSTOM_DATA     | ver. | type | dst                | src                | type |\n"
-#                 " (28 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x81 |\n"
-#                 "                 +------+------+--------------------+--------------------+------+\n"
-#                 "                 +------+--------------------+\n"
-#                 "                 | len. | data               |\n"
-#                 "                 | 0x08 | 0x6162636465666768 |\n"
-#                 "                 +------+--------------------+\n"
-#                 "\n"
-#             ),
-#             id="PayloadWithBytesTest",
-#         ),
-#         pytest.param(
-#             Frame(
-#                 header=Header(),
-#                 packet=Packet.from_payload(
-#                     PayloadWithBytesFixedLengthTest(data=b"abcdefgh")
-#                 ),
-#             ),
-#             (
-#                 "                 +------+------+--------------------+--------------------+------+\n"
-#                 " CUSTOM_DATA     | ver. | type | dst                | src                | type |\n"
-#                 " (27 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x82 |\n"
-#                 "                 +------+------+--------------------+--------------------+------+\n"
-#                 "                 +--------------------+\n"
-#                 "                 | data               |\n"
-#                 "                 | 0x6162636465666768 |\n"
-#                 "                 +--------------------+\n"
-#                 "\n"
-#             ),
-#             id="PayloadWithBytesFixedLengthTest",
-#         ),
-#         pytest.param(
-#             Frame(
-#                 header=Header(),
-#                 packet=Packet.from_payload(PayloadRawData(count=8, data=b"abcdefgh")),
-#             ),
-#             (
-#                 "                 +------+------+--------------------+--------------------+------+\n"
-#                 " RAW_DATA        | ver. | type | dst                | src                | type |\n"
-#                 " (28 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x10 |\n"
-#                 "                 +------+------+--------------------+--------------------+------+\n"
-#                 "                 +------+--------------------+\n"
-#                 "                 | len. | data               |\n"
-#                 "                 | 0x08 | 0x6162636465666768 |\n"
-#                 "                 +------+--------------------+\n"
-#                 "\n"
-#             ),
-#             id="PayloadRawDataTest",
-#         ),
-#     ],
-# )
-# def test_payload_frame_repr(frame, string, capsys):
-#     print(frame)
-#     out, _ = capsys.readouterr()
-#     assert out == string
+@pytest.mark.parametrize(
+    "frame,string",
+    [
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(
+                    PayloadWithBytesTest(count=8, data=b"abcdefgh")
+                ),
+            ),
+            (
+                "                 +------+------+--------------------+--------------------+------+\n"
+                " CUSTOM_DATA     | ver. | type | dst                | src                | type |\n"
+                " (28 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x81 |\n"
+                "                 +------+------+--------------------+--------------------+------+\n"
+                "                 +------+--------------------+\n"
+                "                 | len. | data               |\n"
+                "                 | 0x08 | 0x6162636465666768 |\n"
+                "                 +------+--------------------+\n"
+                "\n"
+            ),
+            id="PayloadWithBytesTest",
+        ),
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(
+                    PayloadWithBytesFixedLengthTest(data=b"abcdefgh")
+                ),
+            ),
+            (
+                "                 +------+------+--------------------+--------------------+------+\n"
+                " CUSTOM_DATA     | ver. | type | dst                | src                | type |\n"
+                " (27 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x82 |\n"
+                "                 +------+------+--------------------+--------------------+------+\n"
+                "                 +--------------------+\n"
+                "                 | data               |\n"
+                "                 | 0x6162636465666768 |\n"
+                "                 +--------------------+\n"
+                "\n"
+            ),
+            id="PayloadWithBytesFixedLengthTest",
+        ),
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(PayloadRawData(count=8, data=b"abcdefgh")),
+            ),
+            (
+                "                 +------+------+--------------------+--------------------+------+\n"
+                " RAW_DATA        | ver. | type | dst                | src                | type |\n"
+                " (28 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x83 |\n"
+                "                 +------+------+--------------------+--------------------+------+\n"
+                "                 +------+--------------------+\n"
+                "                 | len. | data               |\n"
+                "                 | 0x08 | 0x6162636465666768 |\n"
+                "                 +------+--------------------+\n"
+                "\n"
+            ),
+            id="PayloadRawDataTest",
+        ),
+        pytest.param(
+            Frame(
+                header=Header(),
+                packet=Packet.from_payload(PayloadWithInt(value=8)),
+            ),
+            (
+                "                 +------+------+--------------------+--------------------+------+------+\n"
+                " WITH_INT        | ver. | type | dst                | src                | type | val. |\n"
+                " (20 Bytes)      | 0x01 | 0x10 | 0xffffffffffffffff | 0x0000000000000000 | 0x84 | 0x08 |\n"
+                "                 +------+------+--------------------+--------------------+------+------+\n"
+                "\n"
+            ),
+            id="PayloadWithInt",
+        ),
+    ],
+)
+def test_payload_frame_repr(frame, string, capsys):
+    print(frame)
+    out, _ = capsys.readouterr()
+    assert out == string
 
 
 def test_parse_missing_metadata():
@@ -228,27 +362,6 @@ def test_parse_missing_metadata():
     with pytest.raises(ValueError) as excinfo:
         PayloadMissingMetadata().from_bytes(b"")
     assert str(excinfo.value) == "metadata must be defined first"
-
-
-# @pytest.mark.parametrize(
-#     "payload,bytes_",
-#     [
-#         pytest.param(
-#             PayloadAdvertisement(application=ApplicationType.DotBot, calibrated=False),
-#             b"",
-#             id="PayloadAdvertisement",
-#         ),
-#         pytest.param(
-#             PayloadDotBotData(direction=45, pos_x=1000, pos_y=1000, pos_z=2),
-#             b"-\x00\x02" b"\xf1\xde\xbc\x9a\x78\x56\x34\x12\x01\x02",
-#             id="PayloadDotBotData",
-#         ),
-#     ],
-# )
-# def test_from_bytes_empty(payload, bytes_):
-#     with pytest.raises(ValueError) as excinfo:
-#         payload.from_bytes(bytes_)
-#     assert str(excinfo.value) == "Not enough bytes to parse"
 
 
 @dataclass
@@ -295,3 +408,32 @@ def test_parse_non_registered_payload():
     with pytest.raises(ValueError) as excinfo:
         Frame(header=Header(), packet=Packet.from_payload(PayloadNotRegisteredTest()))
     assert str(excinfo.value).startswith("Unsupported payload class")
+
+
+@pytest.mark.parametrize(
+    "payload,bytes_",
+    [
+        pytest.param(
+            PayloadWithInt(value=42),
+            b"",
+            id="PayloadWithInt",
+        ),
+        pytest.param(
+            PayloadWithList(
+                count=2, values=[PayloadWithInt(value=10), PayloadWithInt(value=11)]
+            ),
+            b"\x02"  # count
+            b"\x0a\x0b",  # list of ints,
+            id="PayloadWithList",
+        ),
+    ],
+)
+def test_from_bytes_empty(payload, bytes_):
+    with pytest.raises(ValueError) as excinfo:
+        payload.from_bytes(bytes_)
+    assert str(excinfo.value) == "Not enough bytes to parse"
+
+
+def test_packet_with_none_payload():
+    packet = Packet(payload_type=0x01)
+    assert packet.to_bytes() == b"\x01"

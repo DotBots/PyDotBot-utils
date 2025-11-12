@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 PROTOCOL_VERSION = 1
-PAYLOAD_RESERVED_THRESHOLD = 0x80
 
 
 class ProtocolPayloadParserException(Exception):
@@ -316,7 +315,7 @@ class Frame:
         for key in PAYLOAD_PARSERS.keys():
             if (
                 issubclass(key.__class__, IntEnum)
-                and key.value == self.packet.payload_type
+                and key.value == self.payload_type
             ):
                 payload_type_str = key.name
                 break
