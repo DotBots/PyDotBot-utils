@@ -12,7 +12,7 @@ import typing
 from abc import ABC
 from binascii import hexlify
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 PROTOCOL_VERSION = 1
 PAYLOAD_RESERVED_THRESHOLD = 0x80
@@ -314,7 +314,7 @@ class Frame:
         )
 
         for key in PAYLOAD_PARSERS.keys():
-            if key.value == self.packet.payload_type:
+            if issubclass(key, Enum) and key.value == self.packet.payload_type:
                 payload_type_str = key.name
                 break
         else:
