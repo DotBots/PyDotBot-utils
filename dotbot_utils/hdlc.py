@@ -57,24 +57,20 @@ class HDLCDecodeException(Exception):
 
 
 def _fcs_update(fcs, byte):
-    return (fcs >> 8) ^ FCS16TAB[((fcs ^ ord(byte)) & 0xFF)]
+    return (fcs >> 8) ^ FCS16TAB[((fcs ^ byte[0]) & 0xFF)]
 
 
 def _to_byte(value):
-    return int(value).to_bytes(1, "little")
+    return value.to_bytes(1, "little")
 
 
-def _escape_byte(byte) -> bytes:
-    result = bytearray()
+def _escape_byte(byte: bytes) -> bytes:
+    """Escape HDLC special characters."""
     if byte == HDLC_ESCAPE:
-        result += HDLC_ESCAPE
-        result += HDLC_ESCAPE_ESCAPED
+        return HDLC_ESCAPE + HDLC_ESCAPE_ESCAPED
     elif byte == HDLC_FLAG:
-        result += HDLC_ESCAPE
-        result += HDLC_FLAG_ESCAPED
-    else:
-        result += byte
-    return result
+        return HDLC_ESCAPE + HDLC_FLAG_ESCAPED
+    return byte
 
 
 def hdlc_encode(payload: bytes) -> bytes:
@@ -93,6 +89,8 @@ def hdlc_encode(payload: bytes) -> bytes:
     bytearray(b'~}^test}]\\x06\\x94~')
     >>> hdlc_encode(b"\\xe7\\x94:\\xa6")
     bytearray(b'~\\xe7\\x94:\\xa6\\x83}^~')
+    >>> hdlc_encode(b"}}test}}")
+    bytearray(b'~}]}]test}]}]q\xa8~')
     >>> hdlc_encode(b"'$W\\x82")
     bytearray(b"~\\'$W\\x82\\x13}]~")
     """
@@ -109,11 +107,14 @@ def hdlc_encode(payload: bytes) -> bytes:
     for byte in payload:
         fcs = _fcs_update(fcs, _to_byte(byte))
         hdlc_frame += _escape_byte(_to_byte(byte))
-    fcs = 0xFFFF - fcs
+
+    # finalize FCS (bitwise inverse)
+    fcs ^= 0xFFFF
 
     # add FCS
+    # Little endian FCS (LSB first)
     hdlc_frame += _escape_byte(_to_byte(fcs & 0xFF))
-    hdlc_frame += _escape_byte(_to_byte((fcs & 0xFF00) >> 8))
+    hdlc_frame += _escape_byte(_to_byte((fcs >> 8) & 0xFF))
 
     # add end flag
     hdlc_frame += HDLC_FLAG
@@ -191,23 +192,27 @@ class HDLCHandler:
 
     @property
     def payload(self):
-        """Returns the payload contained in a frame."""
+        """Return the payload contained in a completed frame."""
         if self.state != HDLCState.READY:
             raise HDLCDecodeException("Incomplete HDLC frame")
 
+        payload = bytearray()
+        if len(self.output) >= 2 and self.fcs == HDLC_FCS_OK:
+            payload = self.output[:-2]
+
+        # Reset internal state
         self.state = HDLCState.IDLE
-        if len(self.output) < 2:
-            return bytearray()
-        if self.fcs != HDLC_FCS_OK:
-            return bytearray()
         self.fcs = HDLC_FCS_INIT
-        return self.output[:-2]
+        self.output.clear()
+        self.escape_byte = False
+        return payload
 
     def handle_byte(self, byte):
         """Handle new byte received."""
         if self.state in [HDLCState.IDLE, HDLCState.READY] and byte == HDLC_FLAG:
             self.output = bytearray()
             self.fcs = HDLC_FCS_INIT
+            self.escape_byte = False
             self.state = HDLCState.RECEIVING
         elif self.output and self.state == HDLCState.RECEIVING and byte == HDLC_FLAG:
             # End of frame
