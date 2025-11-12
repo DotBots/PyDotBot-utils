@@ -273,12 +273,6 @@ def test_register_already_registered(payload_type, value_str):
     assert str(excinfo.value) == f"Payload type '{value_str}' already registered"
 
 
-def test_register_reserved():
-    with pytest.raises(ValueError) as excinfo:
-        register_parser(0x7A, PayloadTest)
-    assert str(excinfo.value) == "Payload type '0x7A' is reserved"
-
-
 def test_register_parser():
     register_parser(0xFE, PayloadTest)
     assert PAYLOAD_PARSERS[0xFE] == PayloadTest

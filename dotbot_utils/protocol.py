@@ -18,27 +18,6 @@ PROTOCOL_VERSION = 1
 PAYLOAD_RESERVED_THRESHOLD = 0x80
 
 
-class PayloadType(IntEnum):
-    """Types of DotBot payload types."""
-
-    CMD_MOVE_RAW = 0x00
-    CMD_RGB_LED = 0x01
-    LH2_RAW_DATA = 0x02
-    LH2_LOCATION = 0x03
-    ADVERTISEMENT = 0x04
-    GPS_POSITION = 0x05
-    DOTBOT_DATA = 0x06
-    CONTROL_MODE = 0x07
-    LH2_WAYPOINTS = 0x08
-    GPS_WAYPOINTS = 0x09
-    SAILBOT_DATA = 0x0A
-    CMD_XGO_ACTION = 0x0B
-    LH2_PROCESSED_DATA = 0x0C
-    LH2_CALIBRATION_HOMOGRAPHY = 0x0E
-    RAW_DATA = 0x10
-    DOTBOT_SIMULATOR_DATA = 0xFA
-
-
 class ProtocolPayloadParserException(Exception):
     """Exception raised on invalid or unsupported payload."""
 
@@ -181,8 +160,6 @@ def register_parser(payload_type: int, parser: Payload):
     """Register a new payload parser."""
     if payload_type in PAYLOAD_PARSERS:
         raise ValueError(f"Payload type '0x{payload_type:02X}' already registered")
-    if payload_type < PAYLOAD_RESERVED_THRESHOLD:
-        raise ValueError(f"Payload type '0x{payload_type:02X}' is reserved")
     PAYLOAD_PARSERS[payload_type] = parser
 
 
