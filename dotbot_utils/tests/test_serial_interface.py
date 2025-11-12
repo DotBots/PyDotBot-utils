@@ -70,6 +70,7 @@ def test_write_sends_in_chunks(mock_serial):
     interface = serial_interface.SerialInterface("COM1", 9600, MagicMock())
     data = b"A" * 128
     interface.write(data)
+    interface.flush()
 
     # Should write 64-byte chunks twice
     expected_calls = [
@@ -77,6 +78,7 @@ def test_write_sends_in_chunks(mock_serial):
         call.write(data[:64]),
         call.flush(),
         call.write(data[64:128]),
+        call.flush(),
         call.flush(),
     ]
     actual_calls = [c for c in mock_serial.method_calls if c[0] in ["write", "flush"]]
