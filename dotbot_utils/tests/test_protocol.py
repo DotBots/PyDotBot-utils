@@ -176,7 +176,8 @@ def test_parse_header(bytes_, expected):
             Header(),
             0x86,
             PayloadWithList(
-                count=2, values=[PayloadWithLongInt(value=10), PayloadWithLongInt(value=11)]
+                count=2,
+                values=[PayloadWithLongInt(value=10), PayloadWithLongInt(value=11)],
             ),
             id="PayloadWithList",
         ),
@@ -254,7 +255,10 @@ def test_frame_parser(bytes_, header, payload_type, payload):
                 packet=Packet.from_payload(
                     PayloadWithList(
                         count=2,
-                        values=[PayloadWithLongInt(value=10), PayloadWithLongInt(value=11)],
+                        values=[
+                            PayloadWithLongInt(value=10),
+                            PayloadWithLongInt(value=11),
+                        ],
                     )
                 ),
             ),
