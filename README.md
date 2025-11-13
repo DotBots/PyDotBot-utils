@@ -15,7 +15,6 @@ Clone the repository directly from GitHub:
 
 ```bash
 git clone https://github.com/DotBots/PyDotBot-utils.git
-cd PyDotBot-utils
 ```
 
 ## Installation
@@ -24,6 +23,28 @@ Simply install using pip:
 
 ```bash
 pip install pydotbot-utils
+```
+
+## Developping and testing
+
+`PyDotBot-utils` uses the [hatch](https://hatch.pypa.io/latest/) project manager.
+
+1. Install hatch using pip:
+
+```
+pip install hatch
+```
+
+2. Run the test suite:
+
+```
+hatch test .
+```
+
+3. Run linters:
+
+```
+hatch fmt
 ```
 
 ## License
